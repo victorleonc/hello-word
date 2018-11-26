@@ -1,0 +1,22 @@
+select * from TrxTransaction where TransactionKey = 20000000000007664
+
+select * from TrxTransactionSaleItem where TransactionKey = 20000000000007664
+
+
+select * from TrxTransaction where TransactionKey= 20000000000007661
+
+select * from RepIntegrationLog where SourceKey= 20000000000007664 and Flag=0
+
+sap to ivend transfer
+
+select * from repintegrationlog where SourceKey='107564'
+select * from OWTR where DocEntry = 107564
+
+
+select  Status, * from InvStockTransfer where RequestNumber ='177011484'
+
+select * from InvStockTransferDetail where StockTransFerKey=10000000000029064
+
+update RepIntegrationLog 
+set Status=0, Flag=1, ErrorMessage=''
+where IntegrationKey='26609358'

@@ -1,0 +1,819 @@
+CREATE PROCEDURE SBO_SP_PostTransactionNotice
+(
+	in object_type nvarchar(20), 				-- SBO Object Type
+	in transaction_type nchar(1),			-- [A]dd, [U]pdate, [D]elete, [C]ancel, C[L]ose
+	in num_of_cols_in_key int,
+	in list_of_key_cols_tab_del nvarchar(255),
+	in list_of_cols_val_tab_del nvarchar(255)
+)
+LANGUAGE SQLSCRIPT
+AS
+-- Return values
+error  int;				-- Result (0 for no error)
+error_message nvarchar (200); 		-- Error string to be displayed
+
+-- ---VARIABLES
+VP_FACTURA VARCHAR(9);
+VP_DATASOURCE VARCHAR(1);
+VP_EST VARCHAR(3);
+VP_PEMI VARCHAR(3);
+VP_NUMAUTOR VARCHAR(49);
+VP_SEC_RELA VARCHAR(9);
+VP_FECHA_RELA TIMESTAMP;
+VP_CARDCODE VARCHAR(50);
+VP_SERIE VARCHAR(30);
+VP_ENVIO VARCHAR(30);
+VP_TRANSPORTE VARCHAR(30);
+VP_TRANSPORTISTA VARCHAR(30);
+VP_INITRASLADO TIMESTAMP;
+VP_FINTRASLADO TIMESTAMP;
+VP_ESTA_RELA VARCHAR(3);
+VP_PEMI_RELA VARCHAR(3);
+VP_NUMAUTO_RELA VARCHAR(49);
+VP_FACTURA_RELA INTEGER;
+VP_PUNTO_LLEGADA VARCHAR(100);
+VP_PUNTO_PARTIDA VARCHAR(100);
+VP_DECLARABLE VARCHAR(2);
+VP_BASETYPE INTEGER;
+VP_PARA_ENTREGA VARCHAR(1);
+VP_PARA_ADDONIVEND VARCHAR(1);
+VP_EST_RELA VARCHAR(3);
+VP_NUMAUTOR_RELA VARCHAR(49);
+VP_DIR_ALMA VARCHAR(10);
+VP_NUM_LOTE VARCHAR(10);
+VP_NUM_VOUCHER VARCHAR(8);
+VP_TIPO_CREDITO VARCHAR(1);
+VP_PAGO_NUM INTEGER;
+VP_PAGO_LINEID INTEGER;
+VP_BODEGADEFECTO VARCHAR(2);
+VP_BODEGAENVIO VARCHAR (16);
+VP_STOREID VARCHAR(20);
+-- SN
+VP_TIPORUC VARCHAR(4);
+VP_TIPOID VARCHAR(2);
+VP_TIPOCONTRI VARCHAR(4);
+VP_TIPOSN VARCHAR(4);
+VP_ITEMGIFT VARCHAR(4);
+VP_USUARIOCREA VARCHAR(15);
+VP_USUARIOMODI VARCHAR(15);
+-- NOTA DE CREDITO FECHA FACTURA
+VP_DOCDATEFACREL DATE;
+VP_U_SER_EST VARCHAR(3);
+VP_U_SER_PEFR VARCHAR(3);
+VP_U_NUM_FAC_REL VARCHAR(9);
+VP_LD_RUC  VARCHAR(50);    
+
+begin
+
+error := 0;
+error_message := N'Ok';
+
+VP_FACTURA := '';
+VP_DATASOURCE := '';
+VP_EST := '';
+VP_PEMI := '';
+VP_NUMAUTOR := '';
+VP_SEC_RELA := '';
+VP_FECHA_RELA := '';
+VP_CARDCODE := '';
+VP_SERIE := '';
+VP_ENVIO := '';
+VP_TRANSPORTE := '';
+VP_TRANSPORTISTA := '';
+VP_INITRASLADO := '';
+VP_FINTRASLADO := '';
+VP_ESTA_RELA := '';
+VP_PEMI_RELA := '';
+VP_NUMAUTO_RELA := '';
+VP_FACTURA_RELA := 0;
+VP_PUNTO_LLEGADA := '';
+VP_PUNTO_PARTIDA := '';
+VP_BASETYPE := 0;
+VP_PARA_ENTREGA := '';
+VP_PARA_ADDONIVEND := '';
+VP_DIR_ALMA := '';
+VP_NUM_LOTE := '';
+VP_NUM_VOUCHER := '';
+VP_TIPO_CREDITO := '';
+VP_ITEMGIFT := '';
+VP_USUARIOCREA := '';
+VP_USUARIOMODI := '';
+VP_BODEGADEFECTO := '';
+VP_BODEGAENVIO := '';
+VP_STOREID := '';
+
+VP_PAGO_NUM := 0;
+VP_PAGO_LINEID := 0;
+VP_LD_RUC := '';
+
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+SELECT TOP 1 IFNULL(T0."U_Genera_Entrega",'N') INTO VP_PARA_ENTREGA FROM "@EXX_INF_ADMIN" T0;
+SELECT TOP 1 IFNULL(T0."U_addon_ivend",'N') INTO VP_PARA_ADDONIVEND FROM "@EXX_INF_ADMIN" T0;
+
+
+IF :object_type = '13' AND :transaction_type = 'A' 
+THEN
+
+CALL "SBO_SP_PT_FPAGO"(:object_type, 
+									:transaction_type,
+									:num_of_cols_in_key,
+									:list_of_key_cols_tab_del,
+									:list_of_cols_val_tab_del);
+
+END IF;
+
+-- -- OBJETO 15 - ENTREGAS EN VENTAS
+IF :object_type = '15' then  
+	
+   IF :transaction_type = 'A' then
+				
+      IF :VP_PARA_ENTREGA = 'S' then
+								
+							-- - LES DOY VALOR A LAS VARIABLES
+				 select  TOP 1 IFNULL(T0."DocSubType",''), 
+				               IFNULL(T0."DataSource",''), 
+							   T0."CardCode", 
+							   IFNULL(T1."SeriesName",0), 
+							   IFNULL(T0."ShipToCode",''), 
+							   T0."DocDate", 
+							   T0."DocDate", 
+							   IFNULL(T2."BaseEntry",0), 
+							   IFNULL(T0."U_DOC_DECLARABLE",''), 
+							   IFNULL(T2."BaseType",0) 
+				 INTO VP_FACTURA,
+				      VP_DATASOURCE,
+					  VP_CARDCODE,
+					  VP_SERIE,
+					  VP_ENVIO,
+					  VP_INITRASLADO,
+					  VP_FINTRASLADO,
+				      VP_FACTURA_RELA,
+					  VP_DECLARABLE,
+					  VP_BASETYPE 
+				 FROM	ODLN T0 
+				 INNER JOIN NNM1 T1  ON T0."Series" = T1."Series"
+				 INNER JOIN DLN1 T2  ON T0."DocEntry" = T2."DocEntry" 
+				 WHERE	CAST(T0."DocEntry"  AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+
+
+				 select  TOP 1 LEFT(IFNULL(T0."U_PREFIJO",''),3), 
+				               RIGHT(IFNULL(T0."U_PREFIJO",''),3), 
+							   IFNULL(T0."U_NUM_AUTORIZ",''), 
+							   IFNULL(T1."Street",'') 
+				 INTO VP_EST,
+				      VP_PEMI,
+					  VP_NUMAUTOR,
+					  VP_PUNTO_PARTIDA 
+				 FROM	"@EXX_DOCUM_LEG_INTER" T0 
+				 LEFT JOIN OWHS T1  ON T0.U_BODEGA = T1."WhsCode" 
+				 WHERE	T0.U_NOMBRE = :VP_SERIE AND T0.U_TIPO_DOC = 'GR';
+											 
+				 select  TOP 1 IFNULL(T1."Street",'') 
+				 INTO VP_PUNTO_LLEGADA 
+				 FROM	OCRD T0 
+				 INNER JOIN CRD1 T1  ON T0."CardCode" = T1."CardCode" and t1."AdresType" = 'S' 
+				 WHERE	T0."CardCode" = :VP_CARDCODE AND T1."Address" = :VP_ENVIO;
+
+
+				 select  TOP 1 IFNULL(T0."U_SER_EST",''), 
+				               IFNULL(T0."U_SER_PE",''), 
+							   IFNULL(T0."U_NUM_AUTOR",''), 
+							   CAST(IFNULL(T0."FolioNum",0) AS VARCHAR(15)) 
+				 INTO VP_ESTA_RELA,
+				      VP_PEMI_RELA,
+					  VP_NUMAUTO_RELA,
+					  VP_FACTURA 
+				FROM  OINV T0  
+				WHERE	T0."DocEntry" = :VP_FACTURA_RELA; 
+
+-- SI SE CREAN POR DOCUMENTO MASIVO SE REALIZA EL UPDATE A LOS CAMPOS DE LA LOCALIZACION DE LAS ENTREGAS				
+         IF (:VP_DATASOURCE = 'A' OR :VP_DATASOURCE = 'N') AND :VP_DECLARABLE = 'S' then
+										
+            IF :VP_BASETYPE = 13 then
+												
+				   UPDATE	ODLN
+				   SET		"U_DOC_DECLARABLE" = 'S',
+				            "U_SER_EST" = :VP_EST,
+							"U_SER_PE" = :VP_PEMI,
+							"U_NUM_AUTOR" = :VP_NUMAUTOR,
+				            "U_FEC_INI_TRAS" = :VP_INITRASLADO,
+							"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+				            "U_PUNTO_PART" = :VP_PUNTO_PARTIDA,
+							"U_SER_EST_FR"  = :VP_ESTA_RELA,
+				            "U_SER_PEFR"  = :VP_PEMI_RELA,
+							"U_NUM_AUT_FR" = :VP_NUMAUTO_RELA,
+							"U_NUM_FAC_REL" = :VP_FACTURA,
+				            "U_TRANSPORTE" = :VP_TRANSPORTE,
+							"U_TRANSPORTISTA" = :VP_TRANSPORTISTA,
+				            "U_MOT_TRASLADO" = 'V'
+				   WHERE CAST("DocEntry"  AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+				   
+			 end if;
+		 
+		     IF :VP_BASETYPE = 17 then
+												
+					UPDATE	ODLN
+					SET		"U_DOC_DECLARABLE" = 'S',
+					        "U_SER_EST" = :VP_EST,
+							"U_SER_PE" = :VP_PEMI,
+							"U_NUM_AUTOR" = :VP_NUMAUTOR
+					WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			 end if; 
+
+         end if;
+
+      end if;
+
+			IF :VP_PARA_ADDONIVEND = 'S' then 
+						
+			   VP_INITRASLADO := '';
+			   VP_FINTRASLADO := '';
+			   VP_SERIE := '';
+			   VP_PUNTO_PARTIDA := '';
+			   
+			   select  TOP 1 IFNULL(T1."SeriesName",0), 
+			   				T0."DocDate", 
+			   				T0."DocDate", 
+			   				T2."USER_CODE" 
+			   INTO VP_SERIE,
+			   		VP_INITRASLADO,
+			   		VP_FINTRASLADO,
+			   		VP_USUARIOCREA 
+			   FROM	ODLN T0 
+			   INNER JOIN NNM1 T1  ON T0."Series" = T1."Series" 
+			   INNER JOIN OUSR T2  ON T0."UserSign" = T2."USERID"
+			   WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			   
+			   select  TOP 1 IFNULL(T1."Street",'') 
+			   INTO VP_PUNTO_PARTIDA 
+			   FROM	"@EXX_DOCUM_LEG_INTER" T0 
+			   LEFT JOIN OWHS T1  ON T0."U_BODEGA" = T1."WhsCode" 
+			   WHERE	T0."U_NOMBRE" = :VP_SERIE AND T0."U_TIPO_DOC" = 'GR';
+			   
+			  IF :VP_USUARIOCREA = 'CXSiVend' THEN
+									 
+			   UPDATE	ODLN
+			   SET		"U_MOT_TRASLADO" = 'V',
+			   			"U_FEC_INI_TRAS" = :VP_INITRASLADO,
+			   			"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+			   			"U_DOC_DECLARABLE" = 'S',
+			   			"U_PUNTO_PART" = :VP_PUNTO_PARTIDA
+			   WHERE	CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			 
+			  end if;	
+			  
+			end if;	
+			
+   end if;
+
+end if;	
+
+
+-- -- OBJETO 67 - TRANSFERENCIA DE INVENTARIO
+/*
+IF :object_type = '67' then  
+
+	
+   IF :transaction_type = 'A' then
+				
+      IF :VP_PARA_ADDONIVEND = 'S' then
+						
+         VP_INITRASLADO := '';
+         VP_FINTRASLADO := '';
+         VP_SERIE := '';
+         VP_PUNTO_PARTIDA := '';
+         VP_BODEGADEFECTO := '';
+         VP_USUARIOCREA := '';
+         VP_USUARIOMODI := '';
+         VP_EST := '';
+         VP_PEMI := '';
+         VP_NUMAUTOR := '';
+         VP_BODEGAENVIO := '';
+         VP_STOREID := '';
+         
+         select  TOP 1 IFNULL(T1."SeriesName",0), 
+         			   T0."DocDate",
+         			   T0."DocDate", 
+         			   IFNULL(T2."USER_CODE",''), 
+         			   IFNULL(T0."Filler",''), 
+         			   IFNULL(T0."U_CXS_STSN",'N') 
+         INTO VP_SERIE,
+         	  VP_INITRASLADO,
+         	  VP_FINTRASLADO,
+         	  VP_USUARIOCREA,
+         	  VP_BODEGAENVIO,
+         	  VP_STOREID 
+         FROM	OWTR T0 
+         INNER JOIN NNM1 T1  ON T0."Series" = T1."Series"
+         INNER JOIN OUSR T2  ON T0."UserSign" = T2."USERID" 
+         WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+								
+										
+         select  TOP 1 IFNULL(T1."Street",''), 
+         			   LEFT(T0."U_PREFIJO",3), 
+         			   RIGHT(T0."U_PREFIJO",3), 
+         			   T0."U_NUM_AUTORIZ" 
+         INTO VP_PUNTO_PARTIDA,
+         	  VP_EST,
+         	  VP_PEMI,
+         	  VP_NUMAUTOR 
+         FROM	"@EXX_DOCUM_LEG_INTER" T0 
+         LEFT JOIN OWHS T1  ON T0."U_BODEGA" = T1."WhsCode" 
+         WHERE	T0."U_NOMBRE" = :VP_SERIE AND T0."U_TIPO_DOC" = 'GR' AND T0."U_ESTATUS" = 'A';
+         
+         select  TOP 1 IFNULL(T0."U_CXS_INST",'N') 
+         INTO VP_BODEGADEFECTO 
+         FROM OWHS T0  
+         WHERE T0."WhsCode" = :VP_BODEGAENVIO;
+         
+         
+         if IFNULL(:VP_BODEGADEFECTO,'N') != 'Y' AND :VP_USUARIOCREA = 'CXSiVend' then
+									
+            UPDATE	OWTR
+            SET		"U_MOT_TRASLADO" = 'T',
+					"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+					"U_DOC_DECLARABLE" = 'S',
+            		"U_PUNTO_PART" = :VP_PUNTO_PARTIDA
+            WHERE	CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+         end if;
+         if IFNULL(:VP_BODEGADEFECTO,'N') = 'Y' AND :VP_USUARIOCREA = 'CXSiVend' then
+									
+            UPDATE	OWTR
+            SET		"U_DOC_DECLARABLE" = 'N'
+            WHERE	CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+         end if;
+						
+-- -- Desde el Addon de Ivend que esta en Sap B1
+
+         IF :VP_STOREID != 'N' then
+									
+            UPDATE	OWTR
+            SET		"U_MOT_TRASLADO" = 'T',
+					"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+					"U_DOC_DECLARABLE" = 'S',
+            		"U_PUNTO_PART" = :VP_PUNTO_PARTIDA,
+            		"U_SER_EST" = :VP_EST,
+            		"U_SER_PE" = :VP_PEMI,
+            		"U_NUM_AUTOR" = :VP_NUMAUTOR
+            WHERE	CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+         end if;
+         
+      end if;
+      
+   end if;
+   
+end if;	 */
+
+---- SI SE CREAN POR DOCUMENTO MASIVO SE REALIZA EL UPDATE A LOS CAMPOS DE LA LOCALIZACION DE LAS ENTREGAS				
+         IF (:VP_DATASOURCE = 'A' OR :VP_DATASOURCE = 'N') AND :VP_DECLARABLE = 'S' then
+										
+            IF :VP_BASETYPE = 13 then
+												
+				   UPDATE	ODLN
+				   SET		"U_DOC_DECLARABLE" = 'S',
+				            "U_SER_EST" = :VP_EST,
+							"U_SER_PE" = :VP_PEMI,
+							"U_NUM_AUTOR" = :VP_NUMAUTOR,
+				            "U_FEC_INI_TRAS" = :VP_INITRASLADO,
+							"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+				            "U_PUNTO_PART" = :VP_PUNTO_PARTIDA,
+							"U_SER_EST_FR"  = :VP_ESTA_RELA,
+				            "U_SER_PEFR"  = :VP_PEMI_RELA,
+							"U_NUM_AUT_FR" = :VP_NUMAUTO_RELA,
+							"U_NUM_FAC_REL" = :VP_FACTURA,
+				            "U_TRANSPORTE" = :VP_TRANSPORTE,
+							"U_TRANSPORTISTA" = :VP_TRANSPORTISTA,
+				            "U_MOT_TRASLADO" = 'V'
+				   WHERE CAST("DocEntry"  AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+				   
+			 end if;
+		 
+		     IF :VP_BASETYPE = 17 then
+												
+					UPDATE	ODLN
+					SET		"U_DOC_DECLARABLE" = 'S',
+					        "U_SER_EST" = :VP_EST,
+							"U_SER_PE" = :VP_PEMI,
+							"U_NUM_AUTOR" = :VP_NUMAUTOR
+					WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			 end if; 
+
+         end if;
+
+			IF :VP_PARA_ADDONIVEND = 'S' then 
+						
+			   VP_INITRASLADO := '';
+			   VP_FINTRASLADO := '';
+			   VP_SERIE := '';
+			   VP_PUNTO_PARTIDA := '';
+			   
+			   select  TOP 1 IFNULL(T1."SeriesName",0), 
+			   				T0."DocDate", 
+			   				T0."DocDate", 
+			   				T2."USER_CODE" 
+			   INTO VP_SERIE,
+			   		VP_INITRASLADO,
+			   		VP_FINTRASLADO,
+			   		VP_USUARIOCREA 
+			   FROM	ODLN T0 
+			   INNER JOIN NNM1 T1  ON T0."Series" = T1."Series" 
+			   INNER JOIN OUSR T2  ON T0."UserSign" = T2."USERID"
+			   WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			   
+			   select  TOP 1 IFNULL(T1."Street",'') 
+			   INTO VP_PUNTO_PARTIDA 
+			   FROM	"@EXX_DOCUM_LEG_INTER" T0 
+			   LEFT JOIN OWHS T1  ON T0."U_BODEGA" = T1."WhsCode" 
+			   WHERE	T0."U_NOMBRE" = :VP_SERIE AND T0."U_TIPO_DOC" = 'GR';
+			   
+			  IF :VP_USUARIOCREA = 'CXSiVend' THEN
+									 
+			   UPDATE	ODLN
+			   SET		"U_MOT_TRASLADO" = 'V',
+			   			"U_FEC_INI_TRAS" = :VP_INITRASLADO,
+			   			"U_FEC_FIN_TRAS" = :VP_FINTRASLADO,
+			   			"U_DOC_DECLARABLE" = 'S',
+			   			"U_PUNTO_PART" = :VP_PUNTO_PARTIDA
+			   WHERE	CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+			 
+			  end if;	
+			end if;	
+			
+------------	FIN DE TRANSLADO
+
+------------	OBJETO DE VENTAS 
+IF :object_type = '13' then 
+	
+   VP_FACTURA := '';
+   VP_DATASOURCE := '';
+   VP_PARA_ADDONIVEND := '';
+
+   SELECT TOP 1 IFNULL(T0."U_addon_ivend",'N') INTO VP_PARA_ADDONIVEND FROM "@EXX_INF_ADMIN" T0;
+   
+   SELECT IFNULL((
+   
+   select   IFNULL(T02."U_CXS_ISGC",'N')  
+   FROM	(
+   			SELECT	TOP 1 IFNULL(T0."ItemCode",'') as "ItemCode"
+      		FROM	INV1 T0 
+      		WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del 
+        ) as T01 
+   INNER JOIN
+      	(   
+      	     SELECT	T0."ItemCode",
+			        IFNULL(T0."U_CXS_ISGC",'N') as "U_CXS_ISGC"
+      		 FROM	OITM T0 
+      		 WHERE	IFNULL(T0."U_CXS_ISGC",'N') = 'Y'
+      		 
+         ) AS T02 ON T01."ItemCode" = T02."ItemCode"
+         
+         ),'N') INTO VP_ITEMGIFT FROM DUMMY;
+      
+	
+	VP_USUARIOCREA := '';
+	
+	SELECT	T1."USER_CODE"
+	INTO VP_USUARIOCREA
+	FROM	OINV T0 
+	INNER JOIN OUSR T1  ON T0."UserSign" = T1."USERID"
+	WHERE	CAST("DocEntry" AS VARCHAR(16)) = :list_of_cols_val_tab_del;
+		
+   IF :transaction_type = 'A' then
+			
+      IF :VP_PARA_ADDONIVEND = 'S' AND :VP_ITEMGIFT != 'Y' AND :VP_USUARIOCREA = 'CXSiVend'  then
+					
+         select  T0."DocSubType", 
+         	     T0."DataSource" 
+         INTO VP_FACTURA,
+         	  VP_DATASOURCE 
+         FROM	OINV T0  
+         WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+               
+         IF :VP_DATASOURCE != 'I' AND :VP_FACTURA = '--' then
+									
+            UPDATE OINV SET "U_DOC_DECLARABLE" = 'S',
+            				"U_tipo_comprob" = '18'
+            WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         end if;
+         
+      end if;
+      
+      IF :VP_PARA_ADDONIVEND = 'S' AND :VP_ITEMGIFT = 'Y' AND :VP_USUARIOCREA ='CXSiVend' then
+					
+         select   T0."DocSubType", T0."DataSource" 
+         INTO VP_FACTURA,VP_DATASOURCE 
+         FROM	OINV T0  
+         WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+
+         IF :VP_DATASOURCE != 'I' AND :VP_FACTURA = '--' then
+									
+            UPDATE OINV SET "U_DOC_DECLARABLE" = 'N',
+            				"U_tipo_comprob" = ''
+            WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+         end if;
+         
+      end if;
+      
+   end if;
+   
+end if;	
+
+
+
+-- ----OBJETO NOTAS DE CREDITOS EN VENTAS
+
+IF :object_type = '14' then 
+	
+   VP_FACTURA := '';
+   VP_DATASOURCE := '';
+   VP_PARA_ADDONIVEND := '';
+   VP_DOCDATEFACREL:='';
+   VP_U_SER_EST:='';
+   VP_U_SER_PEFR :='';
+   VP_U_NUM_FAC_REL:='';
+   
+    SELECT TOP 1 IFNULL(T0."U_addon_ivend",'N') INTO VP_PARA_ADDONIVEND FROM "@EXX_INF_ADMIN" T0;
+   
+   
+   IF :transaction_type = 'A' then
+			
+      IF :VP_PARA_ADDONIVEND = 'S' then
+					
+         select  T0."DocSubType", 
+                 T0."DataSource", 
+                 T1."USER_CODE",
+                 T0."U_SER_EST", 
+                 T0."U_SER_PEFR",
+                 T0."U_NUM_FAC_REL"
+                 
+         INTO VP_FACTURA,
+         	  VP_DATASOURCE,
+         	  VP_USUARIOCREA,
+         	  VP_U_SER_EST,
+		   	  VP_U_SER_PEFR,
+			  VP_U_NUM_FAC_REL
+			  
+         FROM	ORIN T0 
+		 INNER JOIN OUSR T1 ON T0."UserSign" = T1."USERID"
+		 WHERE	CAST(T0."DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+         IF :VP_DATASOURCE != 'I' AND VP_USUARIOCREA = 'CXSiVend'  then
+									
+            UPDATE ORIN SET "U_DOC_DECLARABLE" = 'S',
+            				"U_tipo_comprob" = '04',
+            				"U_TIP_DOC_APLIC" = '18'
+            WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+           SELECT  "DocDate" INTO VP_DOCDATEFACREL FROM OINV
+            WHERE "OINV"."U_SER_EST" = :VP_U_SER_EST AND "OINV"."U_SER_PE" = :VP_U_SER_PEFR AND 
+			"OINV"."FolioNum" = :VP_U_NUM_FAC_REL AND "OINV"."CANCELED" ='N' AND
+			"OINV"."DocSubType" = '--';
+
+ 		IF :VP_DOCDATEFACREL IS NULL THEN
+            
+            UPDATE ORIN SET "U_fecha_emi_doc_rel" = "DocDate"
+            WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+            
+          ELSE
+          
+            UPDATE ORIN SET "U_fecha_emi_doc_rel" = :VP_DOCDATEFACREL
+            WHERE CAST("DocEntry" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+          
+          end if;  
+            
+         end if;
+         
+      end if;
+      
+   end if;
+   
+end if;	
+
+
+-- ---- OBJETO DE SOCIO DE NEGOCIOS
+
+IF :object_type = '2' AND :transaction_type = 'A' then 
+	
+   VP_PARA_ADDONIVEND := '';
+   
+   SELECT TOP 1 IFNULL(T0."U_addon_ivend",'N') INTO VP_PARA_ADDONIVEND FROM "@EXX_INF_ADMIN" T0;
+   
+   	VP_USUARIOCREA := '';
+	
+	SELECT	T1."USER_CODE"
+	INTO VP_USUARIOCREA
+	FROM	OCRD T0 
+	INNER JOIN OUSR T1  ON T0."UserSign" = T1."USERID"
+	WHERE	CAST("CardCode" AS VARCHAR(16)) = :list_of_cols_val_tab_del;
+	
+   
+   IF :VP_PARA_ADDONIVEND = 'S' AND :VP_USUARIOCREA = 'CXSiVend'  then
+			
+      select   T0."U_TIPO_CONTR", 
+      		   T0."U_TIPO_ID", 
+      		   T0."U_TIPO_RUC", 
+      		   T0."U_Exx_TProv" ,
+			   T0."LicTradNum"      		    
+      INTO VP_TIPOCONTRI,
+           VP_TIPOID,
+           VP_TIPORUC,
+           VP_TIPOSN , 
+           VP_LD_RUC
+      FROM	OCRD T0  WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+      
+      IF :VP_TIPOID = 'R' then
+						
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'NR', --'S',
+                "U_TIPO_RUC" = 'NR', --'J',
+                "U_Exx_TProv" = '01' --'02'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+      
+      IF :VP_TIPOID = 'C' then
+						
+         UPDATE	OCRD
+         SET    "U_TIPO_CONTR" = 'N',
+                "U_TIPO_RUC" = 'N',
+                "U_Exx_TProv" = '01'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+      
+      IF :VP_TIPOID = 'P' then
+						
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'EX',
+         		"U_TIPO_RUC" = 'EX',
+         		"U_Exx_TProv" = '01'
+         WHERE	CAST("CardCode"  AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+
+	  IF (LENGTH(:VP_LD_RUC) = 10 and :VP_TIPOID != 'P') THEN
+
+         UPDATE	OCRD
+         SET    "U_TIPO_CONTR" = 'N',
+                "U_TIPO_RUC" = 'N',
+                "U_Exx_TProv" = '01',
+                "U_TIPO_ID" ='C'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+
+      end if;
+	
+	  IF (LENGTH(:VP_LD_RUC) = 13 and :VP_TIPOID != 'P') THEN
+
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'NR', --'S',
+                "U_TIPO_RUC" = 'NR', --'J',
+                "U_Exx_TProv" = '01', --'02',
+                "U_TIPO_ID" ='R'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+
+      end if;
+      
+   end if;
+   
+end if;				
+
+IF :object_type = '2' AND :transaction_type = 'U' then 
+	
+   VP_PARA_ADDONIVEND := '';
+   
+   SELECT TOP 1 IFNULL(T0."U_addon_ivend",'N') INTO VP_PARA_ADDONIVEND FROM "@EXX_INF_ADMIN" T0;
+   
+   	VP_USUARIOMODI := '';
+	
+	SELECT	T1."USER_CODE"
+	INTO VP_USUARIOMODI
+	FROM	OCRD T0 
+	INNER JOIN OUSR T1  ON T0."UserSign2" = T1."USERID"
+	WHERE	CAST("CardCode" AS VARCHAR(16)) = :list_of_cols_val_tab_del;
+	
+   
+   IF :VP_PARA_ADDONIVEND = 'S' AND :VP_USUARIOMODI = 'CXSiVend'  then
+			
+      select   T0."U_TIPO_CONTR", 
+      		   T0."U_TIPO_ID", 
+      		   T0."U_TIPO_RUC", 
+      		   T0."U_Exx_TProv",
+			   T0."LicTradNum"
+      INTO VP_TIPOCONTRI,
+           VP_TIPOID,
+           VP_TIPORUC,
+           VP_TIPOSN ,
+           VP_LD_RUC
+      FROM	OCRD T0  WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+      
+      IF :VP_TIPOID = 'R' then
+						
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'NR', --'S',
+                "U_TIPO_RUC" = 'NR', --'J',
+                "U_Exx_TProv" = '01' --'02'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+      
+      IF :VP_TIPOID = 'C' then
+						
+         UPDATE	OCRD
+         SET    "U_TIPO_CONTR" = 'N',
+                "U_TIPO_RUC" = 'N',
+                "U_Exx_TProv" = '01'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+      
+      IF :VP_TIPOID = 'P' then
+						
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'EX',
+         		"U_TIPO_RUC" = 'EX',
+         		"U_Exx_TProv" = '01'
+         WHERE	CAST("CardCode"  AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+         
+      end if;
+
+	  IF (LENGTH(:VP_LD_RUC) = 10 and :VP_TIPOID != 'P') THEN
+
+         UPDATE	OCRD
+         SET    "U_TIPO_CONTR" = 'N',
+                "U_TIPO_RUC" = 'N',
+                "U_Exx_TProv" = '01',
+                "U_TIPO_ID" ='C'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+
+      end if;
+	
+	  IF (LENGTH(:VP_LD_RUC) = 13 and :VP_TIPOID != 'P') THEN
+
+         UPDATE	OCRD
+         SET	"U_TIPO_CONTR" = 'NR', --'S',
+                "U_TIPO_RUC" = 'NR', --'J',
+                "U_Exx_TProv" = '01', --'02',
+                "U_TIPO_ID" ='R'
+         WHERE	CAST("CardCode" AS VARCHAR(15)) = :list_of_cols_val_tab_del;
+
+      end if;
+		
+      
+   end if;
+   
+end if;				
+
+
+-- --- OBJETO DE COBROS
+	
+IF :object_type = '24' AND :transaction_type = 'A' then
+	
+	VP_USUARIOCREA := '';
+	
+	SELECT	T1."USER_CODE"
+	INTO VP_USUARIOCREA
+	FROM	ORCT T0 
+	INNER JOIN OUSR T1  ON T0."UserSign" = T1."USERID"
+	WHERE	CAST("DocEntry" AS VARCHAR(16)) = :list_of_cols_val_tab_del;
+	
+		
+   IF :VP_PARA_ADDONIVEND = 'S' AND :VP_USUARIOCREA = 'CXSiVend' then
+
+		DECLARE VP_new_price DECIMAL(15,2);
+   
+	 		DECLARE CURSOR C_COBROS FOR
+	 			SELECT
+        		 		T0."U_CXS_NUM_LOTE",
+				 		T0."LineID",
+				 		T1."DocNum",
+				 		T0."U_CXS_NUM_VOUCHER" , 
+				 		T0."U_CXS_TIPO_CREDITO"
+         		FROM	RCT3 T0 
+         		INNER JOIN ORCT T1  ON T0."DocNum" = T1."DocNum"
+         		WHERE	CAST("DocEntry" AS VARCHAR(16)) = :list_of_cols_val_tab_del;
+	 		FOR cur_row as C_COBROS DO
+				 
+				 UPDATE OCRH SET "TransRef" = (cur_row."U_CXS_NUM_LOTE")
+				 
+				 WHERE "RctAbs" = cur_row."DocNum" 
+				 AND "RcptLineId" = cur_row."LineID";
+				
+		  	END FOR;
+	
+	end if;
+
+end if;
+
+
+
+-- Select the return value
+
+select :error, :error_message FROM dummy;
+end
